@@ -1,0 +1,1364 @@
+// ─────────────────────────────────────────────────────────────────
+// Wild Peak Souls — Prisma Schema
+// Phase 2: Auth & Security  |  Phase 3: Travel Business + CMS
+// Optimized for Neon PostgreSQL (connection pooling via pgbouncer)
+// ─────────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── Phase 2 Enums ────────────────────────────────────────────────
+
+enum UserRole {
+  GUEST
+  CUSTOMER
+  GUIDE
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  BANNED
+}
+
+enum AuthProvider {
+  CREDENTIALS
+  GOOGLE
+  GITHUB
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  REGISTER
+  PASSWORD_CHANGE
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
+  ROLE_CHANGE
+  PERMISSION_CHANGE
+  SUSPENSION
+  BAN
+  API_ACCESS
+  SETTINGS_CHANGE
+  MEDIA_UPLOAD
+  MEDIA_DELETE
+}
+
+enum ActivityType {
+  AUTH
+  PROFILE
+  BOOKING
+  CONTENT
+  ADMIN
+  SYSTEM
+  SECURITY
+  API
+}
+
+enum LogLevel {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+// ─── Phase 3 Enums ────────────────────────────────────────────────
+
+enum EventType {
+  SINGLE_DAY
+  MULTI_DAY
+  TREKKING
+  CAMPING
+  ADVENTURE
+  EXPEDITION
+  CULTURAL
+  WILDLIFE
+  PHOTOGRAPHY
+  CUSTOM
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  FEATURED
+  ARCHIVED
+  CANCELLED
+  SOLDOUT
+}
+
+enum TourDifficulty {
+  EASY
+  MODERATE
+  CHALLENGING
+  DIFFICULT
+  EXTREME
+}
+
+enum TourStatus {
+  DRAFT
+  PUBLISHED
+  FEATURED
+  ARCHIVED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  REFUNDED
+  NO_SHOW
+  WAITLISTED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+  FAILED
+  WAIVED
+}
+
+enum PaymentMethod {
+  STRIPE
+  PAYPAL
+  SSLCOMMERZ
+  BANK_TRANSFER
+  CASH
+  COUPON_ONLY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  BOOKING_REMINDER
+  PAYMENT_RECEIVED
+  PAYMENT_DUE
+  REVIEW_REQUEST
+  EVENT_UPDATE
+  EVENT_CANCELLED
+  GENERAL
+  SYSTEM
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  OTHER
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  ARCHIVED
+}
+
+enum DealType {
+  HOT_DEAL
+  SPECIAL_OFFER
+  FLASH_SALE
+  SEASONAL
+  EARLY_BIRD
+}
+
+enum SectionType {
+  HOT_DEALS
+  SPECIAL_OFFERS
+  HERO_BANNER
+  FEATURED_EVENTS
+  FEATURED_DESTINATIONS
+  TESTIMONIALS
+  STATS
+  NEWSLETTER
+  CUSTOM
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  ALL_MEALS
+  SNACKS
+  NONE
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 2 MODELS (Auth & Security) — Unchanged
+// ═══════════════════════════════════════════════════════════════════
+
+model User {
+  id                String       @id @default(cuid())
+  email             String       @unique
+  emailVerified     DateTime?
+  name              String?
+  hashedPassword    String?
+  role              UserRole     @default(CUSTOMER)
+  status            UserStatus   @default(PENDING_VERIFICATION)
+  provider          AuthProvider @default(CREDENTIALS)
+  image             String?
+  twoFactorEnabled  Boolean      @default(false)
+  twoFactorSecret   String?
+  failedLoginCount  Int          @default(0)
+  lastFailedLoginAt DateTime?
+  lockedUntil       DateTime?
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?
+
+  profile             Profile?
+  accounts            Account[]
+  sessions            Session[]
+  verificationTokens  VerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]    @relation("AuditLogUser")
+  actorAuditLogs      AuditLog[]    @relation("AuditLogActor")
+  activityLogs        ActivityLog[]
+  bookings            Booking[]
+  reviews             Review[]
+  wishlists           Wishlist[]
+  notifications       Notification[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  firstName       String?
+  lastName        String?
+  displayName     String?
+  bio             String?  @db.Text
+  phone           String?
+  countryCode     String?
+  country         String?
+  city            String?
+  timezone        String?
+  language        String?  @default("en")
+  avatarUrl       String?
+  coverUrl        String?
+  website         String?
+  instagram       String?
+  twitter         String?
+  facebook        String?
+  isGuide         Boolean  @default(false)
+  guideRating     Float?   @default(0)
+  totalTrips      Int?     @default(0)
+  expertise       String[] @default([])
+  languages       String[] @default([])
+  certifications  String[] @default([])
+  experienceYears Int?     @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("profiles")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sessionToken])
+  @@index([expires])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  id         String    @id @default(cuid())
+  userId     String
+  token      String    @unique
+  identifier String
+  type       String    @default("email_verification")
+  expires    DateTime
+  used       Boolean   @default(false)
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([identifier, token])
+  @@index([userId])
+  @@index([token])
+  @@index([expires])
+  @@map("verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  expires   DateTime
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expires])
+  @@map("password_reset_tokens")
+}
+
+model RolePermission {
+  id         String   @id @default(cuid())
+  role       UserRole
+  permission String
+  granted    Boolean  @default(true)
+  grantedBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([role, permission])
+  @@index([role])
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  id         String    @id @default(cuid())
+  userId     String
+  permission String
+  granted    Boolean   @default(true)
+  grantedBy  String?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([userId, permission])
+  @@index([userId])
+  @@map("user_permissions")
+}
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  action       AuditAction
+  entityType   String
+  entityId     String?
+  userId       String?
+  actorId      String?
+  ipAddress    String?
+  userAgent    String?
+  metadata     Json?
+  oldValues    Json?
+  newValues    Json?
+  success      Boolean     @default(true)
+  errorMessage String?
+  level        LogLevel    @default(INFO)
+  createdAt    DateTime    @default(now())
+
+  user  User? @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  actor User? @relation("AuditLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([level])
+  @@map("audit_logs")
+}
+
+model ActivityLog {
+  id          String       @id @default(cuid())
+  userId      String?
+  type        ActivityType
+  action      String
+  description String?
+  ipAddress   String?
+  userAgent   String?
+  path        String?
+  method      String?
+  statusCode  Int?
+  duration    Int?
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([ipAddress])
+  @@map("activity_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 3 MODELS — Travel Business + CMS + Events
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── Geography ────────────────────────────────────────────────────
+
+model Country {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  code        String  @unique // ISO 3166-1 alpha-2
+  slug        String  @unique
+  description String? @db.Text
+  flagUrl     String?
+  coverUrl    String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cities       City[]
+  destinations Destination[]
+  tours        Tour[]
+  events       Event[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("countries")
+}
+
+model City {
+  id          String  @id @default(cuid())
+  countryId   String
+  name        String
+  slug        String  @unique
+  description String? @db.Text
+  coverUrl    String?
+  latitude    Float?
+  longitude   Float?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  country      Country       @relation(fields: [countryId], references: [id])
+  destinations Destination[]
+  tours        Tour[]
+  events       Event[]
+
+  @@index([countryId])
+  @@index([slug])
+  @@index([isActive])
+  @@map("cities")
+}
+
+// ─── Destinations ─────────────────────────────────────────────────
+
+model Destination {
+  id               String   @id @default(cuid())
+  countryId        String?
+  cityId           String?
+  title            String
+  slug             String   @unique
+  shortDescription String?  @db.Text
+  description      String?  @db.Text
+  coverUrl         String?
+  galleryUrls      String[] @default([])
+  latitude         Float?
+  longitude        Float?
+  googleMapUrl     String?
+  altitude         String?
+  bestSeason       String?
+  climate          String?
+  isActive         Boolean  @default(true)
+  isFeatured       Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  viewCount        Int      @default(0)
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  canonicalUrl    String?
+  ogImageUrl      String?
+  structuredData  Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  country Country?     @relation(fields: [countryId], references: [id])
+  city    City?        @relation(fields: [cityId], references: [id])
+  tours   Tour[]
+  events  Event[]
+
+  @@index([slug])
+  @@index([countryId])
+  @@index([cityId])
+  @@index([isActive, isFeatured])
+  @@map("destinations")
+}
+
+// ─── Tours ────────────────────────────────────────────────────────
+
+model TourCategory {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String? @db.Text
+  iconUrl     String?
+  coverUrl    String?
+  color       String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tours Tour[]
+
+  @@index([slug])
+  @@map("tour_categories")
+}
+
+model Tour {
+  id               String         @id @default(cuid())
+  categoryId       String?
+  destinationId    String?
+  countryId        String?
+  cityId           String?
+  title            String
+  slug             String         @unique
+  shortDescription String?        @db.Text
+  description      String?        @db.Text
+  highlights       String[]       @default([])
+  includedItems    String[]       @default([])
+  excludedItems    String[]       @default([])
+  coverUrl         String?
+  galleryUrls      String[]       @default([])
+  duration         String?
+  durationDays     Int?
+  durationNights   Int?
+  difficulty       TourDifficulty @default(MODERATE)
+  maxGroupSize     Int?
+  minGroupSize     Int?           @default(1)
+  startingPrice    Float?
+  status           TourStatus     @default(DRAFT)
+  isFeatured       Boolean        @default(false)
+  isActive         Boolean        @default(true)
+  sortOrder        Int            @default(0)
+  viewCount        Int            @default(0)
+  bookingCount     Int            @default(0)
+  averageRating    Float?         @default(0)
+  reviewCount      Int            @default(0)
+  termsConditions  String?        @db.Text
+  cancellationPolicy String?      @db.Text
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  canonicalUrl    String?
+  ogImageUrl      String?
+  structuredData  Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  category    TourCategory? @relation(fields: [categoryId], references: [id])
+  destination Destination?  @relation(fields: [destinationId], references: [id])
+  country     Country?      @relation(fields: [countryId], references: [id])
+  city        City?         @relation(fields: [cityId], references: [id])
+  bookings    Booking[]
+  reviews     Review[]
+  wishlists   Wishlist[]    @relation("TourWishlist")
+  faqs        FAQ[]         @relation("TourFAQ")
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([destinationId])
+  @@index([status, isActive, isFeatured])
+  @@index([startingPrice])
+  @@map("tours")
+}
+
+// ─── Events ───────────────────────────────────────────────────────
+
+model EventCategory {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String? @db.Text
+  iconUrl     String?
+  coverUrl    String?
+  color       String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  events Event[]
+
+  @@index([slug])
+  @@map("event_categories")
+}
+
+model Event {
+  id                 String      @id @default(cuid())
+  categoryId         String?
+  destinationId      String?
+  countryId          String?
+  cityId             String?
+  title              String
+  slug               String      @unique
+  shortDescription   String?     @db.Text
+  overview           String?     @db.Text
+  coverUrl           String?
+  eventType          EventType   @default(ADVENTURE)
+  status             EventStatus @default(DRAFT)
+  // Dates & Duration
+  startDate          DateTime?
+  endDate            DateTime?
+  startTime          String?
+  endTime            String?
+  duration           String?
+  durationDays       Int?
+  durationNights     Int?
+  timezone           String?     @default("UTC")
+  // Capacity & Pricing
+  availableSeats     Int?
+  maximumCapacity    Int?
+  currentBookings    Int         @default(0)
+  startingPrice      Float?
+  pricePerPerson     Float?
+  groupPrice         Float?
+  childPrice         Float?
+  currency           String      @default("USD")
+  // Location
+  meetingPoint       String?
+  meetingPointUrl    String?
+  googleMapUrl       String?
+  latitude           Float?
+  longitude          Float?
+  // Content
+  includedItems      String[]    @default([])
+  excludedItems      String[]    @default([])
+  termsConditions    String?     @db.Text
+  cancellationPolicy String?     @db.Text
+  refundPolicy       String?     @db.Text
+  // Flags
+  isFeatured         Boolean     @default(false)
+  isActive           Boolean     @default(true)
+  requiresApproval   Boolean     @default(false)
+  sortOrder          Int         @default(0)
+  viewCount          Int         @default(0)
+  bookingCount       Int         @default(0)
+  averageRating      Float?      @default(0)
+  reviewCount        Int         @default(0)
+  // SEO
+  metaTitle          String?
+  metaDescription    String?
+  canonicalUrl       String?
+  ogImageUrl         String?
+  structuredData     Json?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  category      EventCategory?       @relation(fields: [categoryId], references: [id])
+  destination   Destination?         @relation(fields: [destinationId], references: [id])
+  country       Country?             @relation(fields: [countryId], references: [id])
+  city          City?                @relation(fields: [cityId], references: [id])
+  schedules     EventSchedule[]
+  itineraries   EventItinerary[]
+  accommodations EventAccommodation[]
+  meals         EventMeal[]
+  gallery       EventGallery[]
+  bookings      Booking[]
+  reviews       Review[]
+  wishlists     Wishlist[]           @relation("EventWishlist")
+  faqs          FAQ[]                @relation("EventFAQ")
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([destinationId])
+  @@index([status, isActive, isFeatured])
+  @@index([startDate, endDate])
+  @@index([eventType])
+  @@map("events")
+}
+
+model EventSchedule {
+  id          String   @id @default(cuid())
+  eventId     String
+  day         Int
+  title       String
+  description String?  @db.Text
+  startTime   String?
+  endTime     String?
+  location    String?
+  activity    String?
+  notes       String?  @db.Text
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_schedules")
+}
+
+model EventItinerary {
+  id               String   @id @default(cuid())
+  eventId          String
+  day              Int
+  title            String
+  description      String?  @db.Text
+  activities       String[] @default([])
+  accommodation    String?
+  meals            String[] @default([])
+  distance         String?
+  elevationGain    String?
+  duration         String?
+  difficulty       String?
+  imageUrl         String?
+  notes            String?  @db.Text
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_itineraries")
+}
+
+model EventAccommodation {
+  id          String   @id @default(cuid())
+  eventId     String
+  name        String
+  type        String?
+  description String?  @db.Text
+  imageUrl    String?
+  location    String?
+  night       Int?
+  amenities   String[] @default([])
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_accommodations")
+}
+
+model EventMeal {
+  id          String   @id @default(cuid())
+  eventId     String
+  day         Int?
+  mealType    MealType @default(ALL_MEALS)
+  description String?  @db.Text
+  menuItems   String[] @default([])
+  dietaryInfo String[] @default([])
+  isIncluded  Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_meals")
+}
+
+model EventGallery {
+  id         String    @id @default(cuid())
+  eventId    String
+  url        String
+  thumbUrl   String?
+  altText    String?
+  caption    String?
+  mediaType  MediaType @default(IMAGE)
+  sortOrder  Int       @default(0)
+  isCover    Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_gallery")
+}
+
+// ─── Bookings ─────────────────────────────────────────────────────
+
+model Booking {
+  id                String        @id @default(cuid())
+  bookingRef        String        @unique // e.g. WPS-2024-001234
+  userId            String
+  eventId           String?
+  tourId            String?
+  // Counts
+  adultCount        Int           @default(1)
+  childCount        Int           @default(0)
+  infantCount       Int           @default(0)
+  totalParticipants Int           @default(1)
+  // Dates
+  bookingDate       DateTime      @default(now())
+  travelDate        DateTime?
+  returnDate        DateTime?
+  // Status
+  status            BookingStatus @default(PENDING)
+  paymentStatus     PaymentStatus @default(UNPAID)
+  // Pricing snapshot at time of booking
+  unitPrice         Float
+  childPrice        Float?
+  discountAmount    Float         @default(0)
+  couponCode        String?
+  taxAmount         Float         @default(0)
+  totalAmount       Float
+  currency          String        @default("USD")
+  // Notes
+  specialRequests   String?       @db.Text
+  internalNotes     String?       @db.Text
+  // Metadata
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user         User                  @relation(fields: [userId], references: [id])
+  event        Event?                @relation(fields: [eventId], references: [id])
+  tour         Tour?                 @relation(fields: [tourId], references: [id])
+  participants BookingParticipant[]
+  invoice      Invoice?
+  payments     Payment[]
+  coupon       Coupon?               @relation(fields: [couponCode], references: [code])
+
+  @@index([bookingRef])
+  @@index([userId])
+  @@index([eventId])
+  @@index([tourId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([travelDate])
+  @@index([createdAt])
+  @@map("bookings")
+}
+
+model BookingParticipant {
+  id           String   @id @default(cuid())
+  bookingId    String
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  dateOfBirth  DateTime?
+  nationality  String?
+  passportNo   String?
+  passportExpiry DateTime?
+  isLead       Boolean  @default(false)
+  dietaryNeeds String?
+  medicalInfo  String?  @db.Text
+  emergencyContact String?
+  emergencyPhone String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("booking_participants")
+}
+
+// ─── Payments (Preparation — no gateway integration yet) ──────────
+
+model Payment {
+  id              String        @id @default(cuid())
+  bookingId       String
+  invoiceId       String?
+  amount          Float
+  currency        String        @default("USD")
+  method          PaymentMethod @default(BANK_TRANSFER)
+  status          PaymentStatus @default(UNPAID)
+  // Gateway fields (populated when integrated)
+  gatewayName     String?
+  gatewayTxnId    String?
+  gatewayResponse Json?
+  paidAt          DateTime?
+  refundedAt      DateTime?
+  refundAmount    Float?
+  refundReason    String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  booking Booking  @relation(fields: [bookingId], references: [id])
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@index([bookingId])
+  @@index([invoiceId])
+  @@index([status])
+  @@index([gatewayTxnId])
+  @@map("payments")
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique // e.g. INV-2024-001234
+  bookingId     String        @unique
+  status        InvoiceStatus @default(DRAFT)
+  subtotal      Float
+  discountAmount Float        @default(0)
+  taxAmount     Float         @default(0)
+  totalAmount   Float
+  currency      String        @default("USD")
+  dueDate       DateTime?
+  issuedAt      DateTime?
+  paidAt        DateTime?
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  booking  Booking   @relation(fields: [bookingId], references: [id])
+  payments Payment[]
+
+  @@index([invoiceNumber])
+  @@index([bookingId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model Coupon {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  description     String?
+  discountType    String   @default("PERCENTAGE") // PERCENTAGE | FIXED
+  discountValue   Float
+  minimumAmount   Float?
+  maximumDiscount Float?
+  usageLimit      Int?
+  usageCount      Int      @default(0)
+  perUserLimit    Int?     @default(1)
+  isActive        Boolean  @default(true)
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  applicableToEvents Boolean @default(true)
+  applicableToTours  Boolean @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@index([code])
+  @@index([isActive, expiresAt])
+  @@map("coupons")
+}
+
+// ─── Reviews ──────────────────────────────────────────────────────
+
+model Review {
+  id          String        @id @default(cuid())
+  userId      String
+  eventId     String?
+  tourId      String?
+  bookingId   String?
+  rating      Int           // 1–5
+  title       String?
+  body        String?       @db.Text
+  status      ContentStatus @default(DRAFT)
+  isVerified  Boolean       @default(false)
+  isFeatured  Boolean       @default(false)
+  helpfulCount Int          @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id])
+  event Event? @relation(fields: [eventId], references: [id])
+  tour  Tour?  @relation(fields: [tourId], references: [id])
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([tourId])
+  @@index([status])
+  @@index([rating])
+  @@map("reviews")
+}
+
+// ─── Wishlist ─────────────────────────────────────────────────────
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String?
+  tourId    String?
+  createdAt DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event? @relation("EventWishlist", fields: [eventId], references: [id])
+  tour  Tour?  @relation("TourWishlist", fields: [tourId], references: [id])
+
+  @@unique([userId, eventId])
+  @@unique([userId, tourId])
+  @@index([userId])
+  @@map("wishlists")
+}
+
+// ─── Notifications ────────────────────────────────────────────────
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  type       NotificationType @default(GENERAL)
+  title      String
+  message    String           @db.Text
+  linkUrl    String?
+  isRead     Boolean          @default(false)
+  readAt     DateTime?
+  metadata   Json?
+  createdAt  DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// ─── Blog & Content ───────────────────────────────────────────────
+
+model BlogCategory {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String? @db.Text
+  coverUrl    String?
+  color       String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  blogs Blog[]
+
+  @@index([slug])
+  @@map("blog_categories")
+}
+
+model Blog {
+  id               String        @id @default(cuid())
+  categoryId       String?
+  authorId         String?
+  title            String
+  slug             String        @unique
+  excerpt          String?       @db.Text
+  content          String?       @db.Text
+  coverUrl         String?
+  tags             String[]      @default([])
+  status           ContentStatus @default(DRAFT)
+  isFeatured       Boolean       @default(false)
+  allowComments    Boolean       @default(true)
+  viewCount        Int           @default(0)
+  readTimeMinutes  Int?
+  publishedAt      DateTime?
+  scheduledAt      DateTime?
+  // SEO
+  metaTitle        String?
+  metaDescription  String?
+  canonicalUrl     String?
+  ogImageUrl       String?
+  structuredData   Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  category BlogCategory? @relation(fields: [categoryId], references: [id])
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([status, isFeatured])
+  @@index([publishedAt])
+  @@map("blogs")
+}
+
+// ─── FAQ ──────────────────────────────────────────────────────────
+
+model FAQ {
+  id        String   @id @default(cuid())
+  eventId   String?
+  tourId    String?
+  question  String
+  answer    String   @db.Text
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event? @relation("EventFAQ", fields: [eventId], references: [id])
+  tour  Tour?  @relation("TourFAQ", fields: [tourId], references: [id])
+
+  @@index([eventId])
+  @@index([tourId])
+  @@map("faqs")
+}
+
+// ─── Media Library ────────────────────────────────────────────────
+
+model Gallery {
+  id          String    @id @default(cuid())
+  title       String?
+  description String?
+  url         String
+  thumbUrl    String?
+  altText     String?
+  mediaType   MediaType @default(IMAGE)
+  folder      String?
+  fileSize    Int?
+  width       Int?
+  height      Int?
+  mimeType    String?
+  cloudinaryId String?
+  isPublic    Boolean   @default(true)
+  tags        String[]  @default([])
+  uploadedBy  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([folder])
+  @@index([isPublic])
+  @@index([mediaType])
+  @@map("gallery")
+}
+
+model MediaLibrary {
+  id           String    @id @default(cuid())
+  name         String
+  originalName String?
+  url          String
+  thumbUrl     String?
+  altText      String?
+  caption      String?
+  mediaType    MediaType @default(IMAGE)
+  folder       String?   @default("general")
+  fileSize     Int?
+  width        Int?
+  height       Int?
+  mimeType     String?
+  cloudinaryId String?
+  cloudinaryUrl String?
+  isPublic     Boolean   @default(true)
+  tags         String[]  @default([])
+  uploadedBy   String?
+  usageCount   Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([folder])
+  @@index([mediaType])
+  @@index([isPublic])
+  @@index([uploadedBy])
+  @@map("media_library")
+}
+
+// ─── CMS — Hot Deals & Special Offers ────────────────────────────
+
+model HotDeal {
+  id               String    @id @default(cuid())
+  title            String
+  slug             String    @unique
+  subtitle         String?
+  description      String?   @db.Text
+  coverUrl         String?
+  dealType         DealType  @default(HOT_DEAL)
+  // Linked content (optional)
+  eventId          String?
+  tourId           String?
+  externalUrl      String?
+  // Pricing & Discount
+  originalPrice    Float?
+  discountedPrice  Float?
+  discountPercent  Float?
+  currency         String    @default("USD")
+  // CTA
+  ctaText          String?   @default("Book Now")
+  ctaUrl           String?
+  // Dates
+  startsAt         DateTime?
+  endsAt           DateTime?
+  // Control
+  isEnabled        Boolean   @default(true)
+  isFeatured       Boolean   @default(false)
+  sortOrder        Int       @default(0)
+  // SEO
+  metaTitle        String?
+  metaDescription  String?
+  ogImageUrl       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([slug])
+  @@index([isEnabled, isFeatured])
+  @@index([startsAt, endsAt])
+  @@index([dealType])
+  @@map("hot_deals")
+}
+
+model SpecialOffer {
+  id              String    @id @default(cuid())
+  title           String
+  slug            String    @unique
+  subtitle        String?
+  description     String?   @db.Text
+  coverUrl        String?
+  badgeText       String?
+  // Linked content
+  eventId         String?
+  tourId          String?
+  externalUrl     String?
+  // Pricing & Discount
+  originalPrice   Float?
+  discountedPrice Float?
+  discountPercent Float?
+  currency        String    @default("USD")
+  // CTA
+  ctaText         String?   @default("View Offer")
+  ctaUrl          String?
+  // Dates
+  startsAt        DateTime?
+  endsAt          DateTime?
+  // Control
+  isEnabled       Boolean   @default(true)
+  isFeatured      Boolean   @default(false)
+  sortOrder       Int       @default(0)
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  ogImageUrl      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([slug])
+  @@index([isEnabled, isFeatured])
+  @@index([startsAt, endsAt])
+  @@map("special_offers")
+}
+
+// ─── CMS — Homepage Sections ──────────────────────────────────────
+
+model HomepageSection {
+  id          String      @id @default(cuid())
+  sectionType SectionType
+  title       String?
+  subtitle    String?
+  description String?     @db.Text
+  coverUrl    String?
+  // Control
+  isEnabled   Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  // Config: JSON blob for section-specific settings
+  config      Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([sectionType])
+  @@index([isEnabled, sortOrder])
+  @@map("homepage_sections")
+}
+
+// ─── CMS — Pages ──────────────────────────────────────────────────
+
+model CMSPage {
+  id              String        @id @default(cuid())
+  title           String
+  slug            String        @unique
+  content         String?       @db.Text
+  excerpt         String?       @db.Text
+  coverUrl        String?
+  status          ContentStatus @default(DRAFT)
+  template        String?       @default("default")
+  sortOrder       Int           @default(0)
+  showInNav       Boolean       @default(false)
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  canonicalUrl    String?
+  ogImageUrl      String?
+  structuredData  Json?
+  publishedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([slug])
+  @@index([status])
+  @@map("cms_pages")
+}
+
+// ─── Site Settings ────────────────────────────────────────────────
+
+model SiteSettings {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  value         String?  @db.Text
+  valueJson     Json?
+  group         String   @default("general")
+  label         String?
+  description   String?
+  isPublic      Boolean  @default(false)
+  isSuperAdminOnly Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([key])
+  @@index([group])
+  @@index([isPublic])
+  @@map("site_settings")
+}

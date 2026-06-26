@@ -1,0 +1,218 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base */
+    --background: 40 30% 98%;
+    --foreground: 160 30% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 30% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 30% 10%;
+
+    /* Primary — Mountain Green */
+    --primary: 158 44% 32%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary — Forest Green */
+    --secondary: 150 20% 92%;
+    --secondary-foreground: 158 44% 22%;
+
+    /* Muted */
+    --muted: 150 15% 95%;
+    --muted-foreground: 160 10% 42%;
+
+    /* Accent — Deep Blue */
+    --accent: 210 80% 25%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Semantic */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 38%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 30 50% 15%;
+
+    --border: 150 15% 88%;
+    --input: 150 15% 88%;
+    --ring: 158 44% 32%;
+
+    /* Charts */
+    --chart-1: 158 44% 32%;
+    --chart-2: 210 80% 35%;
+    --chart-3: 142 60% 45%;
+    --chart-4: 38 80% 50%;
+    --chart-5: 200 65% 55%;
+
+    --radius: 0.625rem;
+
+    /* Brand — Mountain Green ramp */
+    --mountain: 158 44% 32%;
+    --mountain-foreground: 0 0% 100%;
+    --mountain-50: 156 40% 95%;
+    --mountain-100: 156 38% 88%;
+    --mountain-200: 156 40% 78%;
+    --mountain-300: 156 42% 65%;
+    --mountain-400: 158 48% 48%;
+    --mountain-500: 158 44% 38%;
+    --mountain-600: 158 44% 32%;
+    --mountain-700: 158 45% 26%;
+    --mountain-800: 158 46% 20%;
+    --mountain-900: 158 47% 15%;
+
+    /* Brand — Forest Green ramp */
+    --forest: 140 35% 28%;
+    --forest-foreground: 0 0% 100%;
+    --forest-50: 140 30% 94%;
+    --forest-100: 140 32% 86%;
+    --forest-200: 140 34% 74%;
+    --forest-300: 140 36% 60%;
+    --forest-400: 140 38% 46%;
+    --forest-500: 140 35% 38%;
+    --forest-600: 140 35% 28%;
+    --forest-700: 140 36% 22%;
+    --forest-800: 140 37% 17%;
+    --forest-900: 140 38% 12%;
+
+    /* Brand — Deep Blue / Ocean ramp */
+    --ocean: 210 80% 25%;
+    --ocean-foreground: 0 0% 100%;
+    --ocean-50: 210 60% 94%;
+    --ocean-100: 210 62% 86%;
+    --ocean-200: 210 66% 74%;
+    --ocean-300: 210 70% 62%;
+    --ocean-400: 210 75% 48%;
+    --ocean-500: 210 78% 38%;
+    --ocean-600: 210 80% 30%;
+    --ocean-700: 210 80% 25%;
+    --ocean-800: 210 82% 19%;
+    --ocean-900: 210 83% 14%;
+  }
+
+  .dark {
+    --background: 160 25% 7%;
+    --foreground: 150 15% 92%;
+    --card: 160 22% 10%;
+    --card-foreground: 150 15% 92%;
+    --popover: 160 22% 10%;
+    --popover-foreground: 150 15% 92%;
+
+    --primary: 158 44% 45%;
+    --primary-foreground: 160 30% 8%;
+
+    --secondary: 160 18% 16%;
+    --secondary-foreground: 150 15% 92%;
+
+    --muted: 160 15% 15%;
+    --muted-foreground: 150 10% 60%;
+
+    --accent: 210 75% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 80% 50%;
+    --warning-foreground: 30 50% 10%;
+
+    --border: 160 15% 18%;
+    --input: 160 15% 18%;
+    --ring: 158 44% 45%;
+
+    --chart-1: 158 44% 45%;
+    --chart-2: 210 75% 50%;
+    --chart-3: 142 55% 50%;
+    --chart-4: 38 75% 55%;
+    --chart-5: 200 60% 55%;
+
+    --mountain: 158 44% 45%;
+    --mountain-foreground: 160 30% 8%;
+    --mountain-50: 160 22% 12%;
+    --mountain-100: 160 22% 15%;
+    --mountain-200: 160 24% 20%;
+    --mountain-300: 160 28% 28%;
+    --mountain-400: 160 34% 38%;
+    --mountain-500: 158 42% 45%;
+    --mountain-600: 158 44% 50%;
+    --mountain-700: 158 46% 55%;
+    --mountain-800: 158 48% 62%;
+    --mountain-900: 158 50% 72%;
+
+    --forest: 140 35% 38%;
+    --forest-foreground: 160 30% 8%;
+    --forest-50: 160 22% 12%;
+    --forest-100: 160 22% 15%;
+    --forest-200: 160 24% 20%;
+    --forest-300: 160 28% 28%;
+    --forest-400: 140 32% 38%;
+    --forest-500: 140 35% 45%;
+    --forest-600: 140 38% 52%;
+    --forest-700: 140 40% 60%;
+    --forest-800: 140 42% 68%;
+    --forest-900: 140 44% 78%;
+
+    --ocean: 210 75% 45%;
+    --ocean-foreground: 0 0% 100%;
+    --ocean-50: 160 22% 12%;
+    --ocean-100: 160 22% 15%;
+    --ocean-200: 200 30% 20%;
+    --ocean-300: 205 50% 30%;
+    --ocean-400: 210 65% 40%;
+    --ocean-500: 210 72% 48%;
+    --ocean-600: 210 75% 55%;
+    --ocean-700: 210 78% 62%;
+    --ocean-800: 210 80% 72%;
+    --ocean-900: 210 82% 82%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+  }
+}
+
+@layer components {
+  .container-px {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .bg-mesh {
+    background-image:
+      radial-gradient(at 20% 20%, hsl(var(--mountain-500) / 0.15) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsl(var(--ocean-500) / 0.12) 0px, transparent 50%),
+      radial-gradient(at 80% 80%, hsl(var(--forest-500) / 0.1) 0px, transparent 50%);
+  }
+}
