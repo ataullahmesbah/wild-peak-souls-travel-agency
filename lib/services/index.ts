@@ -20,4 +20,14 @@ export type { CreateBlogInput } from '@/lib/services/blog.service';
 export { hotDealService, specialOfferService, homepageSectionService } from '@/lib/services/cms.service';
 export type { CreateHotDealInput, CreateSpecialOfferInput } from '@/lib/services/cms.service';
 
+export { paymentManager, defaultPaymentSettings } from '@/lib/payment/payment-manager';
+export type { PaymentProvider, PaymentIntent, PaymentSettings, RefundResult } from '@/lib/payment/payment-provider';
+export { transactionService } from '@/lib/payment/transaction-service';
+export { refundService } from '@/lib/payment/refund-service';
+export { invoiceService } from '@/lib/invoice/invoice-service';
+export type { InvoiceData } from '@/lib/invoice/invoice-service';
+
+export { notificationService } from '@/lib/services/notification.service';
+export type { NotificationInput, NotificationType, NotificationChannel, NotificationRecord } from '@/lib/services/notification.service';
+
 export type { ServiceResult, PaginatedResponse, QueryParams } from '@/lib/services/types';
