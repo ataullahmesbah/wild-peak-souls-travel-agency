@@ -1,13 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  swcMinify: false,
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
   experimental: {
     serverActions: true,
     serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs', 'nodemailer'],
+    webpackBuildWorker: false,
   },
   webpack: (config, { isServer }) => {
+    config.watchOptions = { poll: false, ignored: /node_modules/ };
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,

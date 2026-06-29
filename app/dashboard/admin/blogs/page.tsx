@@ -46,7 +46,7 @@ export default function BlogsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Blogs" description="Manage blog posts" action={<Button><Plus className="mr-2 h-4 w-4" />Add Blog</Button>} />
+      <PageHeader title="Blogs" description="Manage blog posts" action={<Button asChild><Link href="/dashboard/admin/blogs/new"><Plus className="mr-2 h-4 w-4" />Add Blog</Link></Button>} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Blogs" value={blogs.length} icon={BookOpen} />
         <StatCard title="Published" value={blogs.filter((b) => b.status === "published").length} icon={Eye} />
