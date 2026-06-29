@@ -400,6 +400,14 @@ export function isAdmin(role: UserRole): boolean {
   return role === 'admin' || role === 'super_admin';
 }
 
+export function isGuide(role: UserRole): boolean {
+  return role === 'guide' || role === 'admin' || role === 'super_admin';
+}
+
+export function isModerator(role: UserRole): boolean {
+  return role === 'moderator' || role === 'admin' || role === 'super_admin';
+}
+
 export function canAccessApiManagement(role: UserRole): boolean {
   return role === 'super_admin';
 }
