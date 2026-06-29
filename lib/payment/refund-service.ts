@@ -2,21 +2,13 @@
  * Refund Service — Automated Refund Processing
  *
  * Handles refund calculations, eligibility checks,
- * and provider refund execution.
+ * and refund execution using the Payment model.
  */
 
 import { prisma } from "@/lib/db";
 import { paymentManager } from "./payment-manager";
 import type { PaymentProvider } from "./payment-provider";
 import type { ServiceResult } from "@/lib/services/types";
-import { defaultPaymentSettings } from "./payment-manager";
-
-export interface RefundRequest {
-  bookingId: string;
-  amount?: number; // Full refund if omitted
-  reason: string;
-  processedById: string;
-}
 
 export interface RefundCalculation {
   eligible: boolean;
@@ -36,7 +28,7 @@ export interface RefundRecord {
   status: "pending" | "succeeded" | "failed";
   processedById: string;
   processedAt?: Date;
-  providerTxnId?: string;
+  gatewayTxnId?: string;
   errorMessage?: string;
 }
 
@@ -49,8 +41,8 @@ export const refundService = {
       const booking = await prisma.booking.findUnique({
         where: { id: bookingId },
         include: {
-          event: { select: { startDate: true } },
-          tour: { select: { startDate: true } },
+          event: true,
+          tour: true,
         },
       });
 
@@ -58,13 +50,12 @@ export const refundService = {
         return { success: false, error: "Booking not found." };
       }
 
-      const travelDate = booking.travelDate || booking.event?.startDate || booking.tour?.startDate;
+      const travelDate = booking.travelDate || (booking.event as any)?.startDate || (booking.tour as any)?.startDate;
       if (!travelDate) {
         return { success: false, error: "No travel date found for booking." };
       }
 
       const daysUntil = Math.ceil((new Date(travelDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      const policy = defaultPaymentSettings.cancellationPolicy;
       const originalAmount = booking.totalAmount;
 
       let eligible = false;
@@ -73,27 +64,26 @@ export const refundService = {
       let policyApplied: "full" | "partial" | "none" = "none";
       let reason = "";
 
-      if (daysUntil >= policy.fullRefundDays) {
+      if (daysUntil >= 30) {
         eligible = true;
         refundAmount = requestedAmount ?? originalAmount;
         penaltyAmount = 0;
         policyApplied = "full";
-        reason = `Full refund: ${daysUntil} days before travel (policy: ${policy.fullRefundDays}+ days)`;
-      } else if (daysUntil >= policy.partialRefundDays) {
+        reason = `Full refund: ${daysUntil} days before travel (30+ days policy)`;
+      } else if (daysUntil >= 14) {
         eligible = true;
-        const maxRefund = originalAmount * (policy.partialRefundPercentage / 100);
+        const maxRefund = originalAmount * 0.5;
         refundAmount = requestedAmount ? Math.min(requestedAmount, maxRefund) : maxRefund;
         penaltyAmount = originalAmount - refundAmount;
         policyApplied = "partial";
-        reason = `Partial refund: ${daysUntil} days before travel (policy: ${policy.partialRefundDays}-${policy.fullRefundDays} days = ${policy.partialRefundPercentage}%)`;
+        reason = `Partial refund: ${daysUntil} days before travel (14-30 days = 50%)`;
       } else if (daysUntil >= 0) {
         eligible = false;
         refundAmount = 0;
         penaltyAmount = originalAmount;
         policyApplied = "none";
-        reason = `No refund: ${daysUntil} days before travel (within ${policy.partialRefundDays} days)`;
+        reason = `No refund: ${daysUntil} days before travel (within 14 days)`;
       } else {
-        // Already traveled
         eligible = false;
         refundAmount = 0;
         penaltyAmount = originalAmount;
@@ -120,11 +110,14 @@ export const refundService = {
   },
 
   async processRefund(
-    request: RefundRequest,
-    provider: PaymentProvider
+    bookingId: string,
+    reason: string,
+    processedById: string,
+    provider: PaymentProvider,
+    amount?: number
   ): Promise<ServiceResult<RefundRecord>> {
     try {
-      const calc = await this.calculateRefund(request.bookingId, request.amount);
+      const calc = await this.calculateRefund(bookingId, amount);
       if (!calc.success || !calc.data) {
         return { success: false, error: calc.error || "Refund calculation failed." };
       }
@@ -133,9 +126,9 @@ export const refundService = {
         return { success: false, error: calc.data.reason || "Booking is not eligible for refund." };
       }
 
-      // Find the original payment
+      // Find the original paid payment
       const payment = await prisma.payment.findFirst({
-        where: { bookingId: request.bookingId, status: "PAID" },
+        where: { bookingId, status: "PAID" },
         orderBy: { createdAt: "desc" },
       });
 
@@ -146,58 +139,60 @@ export const refundService = {
       // Process refund through provider
       const refundResult = await paymentManager.processRefund(provider, {
         paymentId: payment.id,
-        gatewayTxnId: payment.providerTxnId,
+        gatewayTxnId: payment.gatewayTxnId ?? "",
         amount: calc.data.refundAmount,
-        reason: request.reason,
+        reason,
       });
 
-      if (!refundResult.success || !refundResult.data) {
+      if (!refundResult.success) {
         return { success: false, error: refundResult.error || "Refund failed." };
       }
 
-      // Record refund
-      const refund = await prisma.refund.create({
+      // Update the original payment with refund details
+      await prisma.payment.update({
+        where: { id: payment.id },
         data: {
-          bookingId: request.bookingId,
-          paymentId: payment.id,
-          amount: calc.data.refundAmount,
-          reason: request.reason,
-          status: refundResult.data.status === "succeeded" ? "SUCCEEDED" : "PENDING",
-          processedById: request.processedById,
-          processedAt: new Date(),
-          providerTxnId: refundResult.data.id,
+          status: "REFUNDED",
+          refundAmount: calc.data.refundAmount,
+          refundReason: reason,
+          refundedAt: new Date(),
+        },
+      });
+
+      // Create a refund record as a new payment entry
+      const refundPayment = await prisma.payment.create({
+        data: {
+          bookingId,
+          amount: -calc.data.refundAmount,
+          currency: payment.currency,
+          status: "REFUNDED",
+          method: payment.method,
+          gatewayName: provider,
+          refundReason: reason,
+          refundedAt: new Date(),
         },
       });
 
       // Update booking status
       await prisma.booking.update({
-        where: { id: request.bookingId },
+        where: { id: bookingId },
         data: {
-          paymentStatus: refundResult.data.status === "succeeded" ? "REFUNDED" : "PENDING",
-          status: refundResult.data.status === "succeeded" ? "CANCELLED" : "PENDING",
-        },
-      });
-
-      // Update payment record
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-          status: refundResult.data.status === "succeeded" ? "REFUNDED" : "PENDING",
-          metadata: { refundReason: request.reason, refundAmount: calc.data.refundAmount },
+          paymentStatus: "REFUNDED",
+          status: "CANCELLED",
         },
       });
 
       return {
         success: true,
         data: {
-          id: refund.id,
-          bookingId: request.bookingId,
+          id: refundPayment.id,
+          bookingId,
           amount: calc.data.refundAmount,
-          reason: request.reason,
-          status: refundResult.data.status === "succeeded" ? "succeeded" : "pending",
-          processedById: request.processedById,
+          reason,
+          status: "succeeded",
+          processedById,
           processedAt: new Date(),
-          providerTxnId: refundResult.data.id,
+          gatewayTxnId: refundResult.data?.id,
         },
       };
     } catch (err) {
@@ -208,8 +203,8 @@ export const refundService = {
 
   async getRefundHistory(bookingId: string): Promise<ServiceResult<RefundRecord[]>> {
     try {
-      const refunds = await prisma.refund.findMany({
-        where: { bookingId },
+      const refunds = await prisma.payment.findMany({
+        where: { bookingId, status: "REFUNDED" },
         orderBy: { createdAt: "desc" },
       });
 
@@ -218,12 +213,12 @@ export const refundService = {
         data: refunds.map((r) => ({
           id: r.id,
           bookingId: r.bookingId,
-          amount: r.amount,
-          reason: r.reason,
-          status: r.status.toLowerCase() as "pending" | "succeeded" | "failed",
-          processedById: r.processedById,
-          processedAt: r.processedAt ?? undefined,
-          providerTxnId: r.providerTxnId ?? undefined,
+          amount: Math.abs(r.refundAmount ?? r.amount),
+          reason: r.refundReason ?? "",
+          status: "succeeded" as const,
+          processedById: "",
+          processedAt: r.refundedAt ?? undefined,
+          gatewayTxnId: r.gatewayTxnId ?? undefined,
         })),
       };
     } catch (err) {

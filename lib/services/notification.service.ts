@@ -2,25 +2,18 @@
  * Notification Service — Unified Notification System
  *
  * Prepares notifications for booking events, payment updates,
- * tour reminders, and system messages. Notifications are
- * stored in the database and can be delivered via:
- * - In-app notifications (WebSocket / Server-Sent Events)
- * - Email (via email service)
- * - Push notifications (future)
- *
- * This is a preparation layer. Actual delivery channels will be
- * wired when WebSocket infrastructure is configured.
+ * tour reminders, and system messages.
  */
 
 import { prisma } from "@/lib/db";
 import type { ServiceResult } from "@/lib/services/types";
 
-export type NotificationType =
+export type AppNotificationType =
   | "BOOKING_CONFIRMED"
   | "BOOKING_CANCELLED"
   | "BOOKING_REMINDER"
   | "PAYMENT_RECEIVED"
-  | "PAYMENT_FAILED"
+  | "PAYMENT_DUE"
   | "PAYMENT_REFUNDED"
   | "TOUR_STARTING"
   | "EVENT_STARTING"
@@ -36,11 +29,11 @@ export type NotificationChannel = "in_app" | "email" | "push" | "sms";
 
 export interface NotificationInput {
   userId: string;
-  type: NotificationType;
+  type: AppNotificationType;
   title: string;
   body: string;
   link?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: any;
   channels?: NotificationChannel[];
   sendImmediately?: boolean;
 }
@@ -53,7 +46,7 @@ export interface NotificationRecord {
   body: string;
   link?: string;
   isRead: boolean;
-  metadata?: Record<string, unknown>;
+  metadata?: any;
   createdAt: Date;
   readAt?: Date;
 }
@@ -76,20 +69,30 @@ export const notificationService = {
       const notification = await prisma.notification.create({
         data: {
           userId: input.userId,
-          type: input.type,
+          type: "GENERAL",
           title: input.title,
-          body: input.body,
-          link: input.link,
-          metadata: input.metadata ?? {},
+          message: input.body ?? "",
+          linkUrl: input.link,
+          metadata: input.metadata as any,
           isRead: false,
         },
       });
 
-      // TODO: Send to email channel if configured
-      // TODO: Send to push channel if configured
-      // TODO: Send to in-app via WebSocket / SSE
-
-      return { success: true, data: notification as NotificationRecord };
+      return {
+        success: true,
+        data: {
+          id: notification.id,
+          userId: notification.userId,
+          type: notification.type,
+          title: notification.title,
+          body: notification.message,
+          link: notification.linkUrl ?? undefined,
+          isRead: notification.isRead,
+          metadata: notification.metadata as any,
+          createdAt: notification.createdAt,
+          readAt: notification.readAt ?? undefined,
+        },
+      };
     } catch (err) {
       console.error("[NotificationService] create error:", err);
       return { success: false, error: "Failed to create notification." };
@@ -118,7 +121,18 @@ export const notificationService = {
       return {
         success: true,
         data: {
-          notifications: notifications as NotificationRecord[],
+          notifications: notifications.map((n) => ({
+            id: n.id,
+            userId: n.userId,
+            type: n.type,
+            title: n.title,
+            body: n.message,
+            link: n.linkUrl ?? undefined,
+            isRead: n.isRead,
+            metadata: n.metadata as any,
+            createdAt: n.createdAt,
+            readAt: n.readAt ?? undefined,
+          })),
           unreadCount,
         },
       };
@@ -166,8 +180,6 @@ export const notificationService = {
     }
   },
 
-  // ── Pre-built notification templates ───────────────────────────
-
   async bookingConfirmed(userId: string, bookingRef: string, itemName: string): Promise<ServiceResult<NotificationRecord>> {
     return this.create({
       userId,
@@ -204,7 +216,7 @@ export const notificationService = {
   async paymentFailed(userId: string, bookingRef: string): Promise<ServiceResult<NotificationRecord>> {
     return this.create({
       userId,
-      type: "PAYMENT_FAILED",
+      type: "PAYMENT_DUE",
       title: "Payment Failed",
       body: `Payment for booking ${bookingRef} failed. Please retry payment.`,
       link: `/dashboard/bookings/${bookingRef}`,

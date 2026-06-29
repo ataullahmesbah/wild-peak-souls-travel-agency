@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { BookOpen, Plus, Pencil, Trash2, Eye, FileText } from "lucide-react";
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
 import { StatCard } from "@/components/dashboard/stat-card";

@@ -6,20 +6,20 @@
  */
 
 import { prisma } from "@/lib/db";
-import type { PaymentProvider, PaymentIntent, WebhookResult } from "./payment-provider";
+import type { PaymentProvider } from "./payment-provider";
 import type { PaymentStatus } from "@prisma/client";
 import type { ServiceResult } from "@/lib/services/types";
 
 export interface TransactionRecord {
   id: string;
   bookingId: string;
-  provider: PaymentProvider;
-  providerTxnId: string;
+  gatewayName: string | null;
+  gatewayTxnId: string | null;
   amount: number;
   currency: string;
   status: PaymentStatus;
   method: string;
-  metadata: Record<string, string>;
+  paidAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,29 +46,42 @@ export const transactionService = {
     input: {
       bookingId: string;
       provider: PaymentProvider;
-      providerTxnId: string;
+      gatewayTxnId: string;
       amount: number;
       currency: string;
       status: PaymentStatus;
       method: string;
-      metadata?: Record<string, string>;
     }
   ): Promise<ServiceResult<TransactionRecord>> {
     try {
       const tx = await prisma.payment.create({
         data: {
           bookingId: input.bookingId,
-          provider: input.provider,
-          providerTxnId: input.providerTxnId,
+          gatewayName: input.provider,
+          gatewayTxnId: input.gatewayTxnId,
           amount: input.amount,
           currency: input.currency,
           status: input.status,
-          method: input.method,
-          metadata: input.metadata ?? {},
+          method: input.method as any,
         },
       });
 
-      return { success: true, data: tx as TransactionRecord };
+      return {
+        success: true,
+        data: {
+          id: tx.id,
+          bookingId: tx.bookingId,
+          gatewayName: tx.gatewayName,
+          gatewayTxnId: tx.gatewayTxnId,
+          amount: tx.amount,
+          currency: tx.currency,
+          status: tx.status,
+          method: tx.method,
+          paidAt: tx.paidAt,
+          createdAt: tx.createdAt,
+          updatedAt: tx.updatedAt,
+        },
+      };
     } catch (err) {
       console.error("[TransactionService] record error:", err);
       return { success: false, error: "Failed to record transaction." };
@@ -76,17 +89,38 @@ export const transactionService = {
   },
 
   async updateStatus(
-    providerTxnId: string,
-    status: PaymentStatus,
-    metadata?: Record<string, string>
+    gatewayTxnId: string,
+    status: PaymentStatus
   ): Promise<ServiceResult<TransactionRecord>> {
     try {
+      const existing = await prisma.payment.findFirst({
+        where: { gatewayTxnId },
+      });
+      if (!existing) {
+        return { success: false, error: "Transaction not found." };
+      }
+
       const tx = await prisma.payment.update({
-        where: { providerTxnId },
-        data: { status, metadata: metadata ? { ...metadata } : undefined },
+        where: { id: existing.id },
+        data: { status },
       });
 
-      return { success: true, data: tx as TransactionRecord };
+      return {
+        success: true,
+        data: {
+          id: tx.id,
+          bookingId: tx.bookingId,
+          gatewayName: tx.gatewayName,
+          gatewayTxnId: tx.gatewayTxnId,
+          amount: tx.amount,
+          currency: tx.currency,
+          status: tx.status,
+          method: tx.method,
+          paidAt: tx.paidAt,
+          createdAt: tx.createdAt,
+          updatedAt: tx.updatedAt,
+        },
+      };
     } catch (err) {
       console.error("[TransactionService] updateStatus error:", err);
       return { success: false, error: "Failed to update transaction status." };
@@ -107,13 +141,25 @@ export const transactionService = {
         .filter((t) => t.status === "REFUNDED")
         .reduce((sum, t) => sum + t.amount, 0);
       const totalPending = transactions
-        .filter((t) => t.status === "UNPAID" || t.status === "PENDING")
+        .filter((t) => t.status === "UNPAID" || t.status === "PARTIAL")
         .reduce((sum, t) => sum + t.amount, 0);
 
       return {
         success: true,
         data: {
-          transactions: transactions as TransactionRecord[],
+          transactions: transactions.map((tx) => ({
+            id: tx.id,
+            bookingId: tx.bookingId,
+            gatewayName: tx.gatewayName,
+            gatewayTxnId: tx.gatewayTxnId,
+            amount: tx.amount,
+            currency: tx.currency,
+            status: tx.status,
+            method: tx.method,
+            paidAt: tx.paidAt,
+            createdAt: tx.createdAt,
+            updatedAt: tx.updatedAt,
+          })),
           totalPaid,
           totalRefunded,
           totalPending,
@@ -125,25 +171,47 @@ export const transactionService = {
     }
   },
 
-  async getByProviderTxnId(providerTxnId: string): Promise<ServiceResult<TransactionRecord>> {
+  async getByGatewayTxnId(gatewayTxnId: string): Promise<ServiceResult<TransactionRecord>> {
     try {
-      const tx = await prisma.payment.findUnique({
-        where: { providerTxnId },
+      const tx = await prisma.payment.findFirst({
+        where: { gatewayTxnId },
       });
       if (!tx) return { success: false, error: "Transaction not found." };
-      return { success: true, data: tx as TransactionRecord };
+      return {
+        success: true,
+        data: {
+          id: tx.id,
+          bookingId: tx.bookingId,
+          gatewayName: tx.gatewayName,
+          gatewayTxnId: tx.gatewayTxnId,
+          amount: tx.amount,
+          currency: tx.currency,
+          status: tx.status,
+          method: tx.method,
+          paidAt: tx.paidAt,
+          createdAt: tx.createdAt,
+          updatedAt: tx.updatedAt,
+        },
+      };
     } catch (err) {
-      console.error("[TransactionService] getByProviderTxnId error:", err);
+      console.error("[TransactionService] getByGatewayTxnId error:", err);
       return { success: false, error: "Failed to fetch transaction." };
     }
   },
 
   async processWebhookResult(
-    result: WebhookResult,
+    result: {
+      bookingRef: string;
+      paymentIntentId: string;
+      status: "success" | "failure" | "pending";
+      amount?: number;
+      currency?: string;
+      event?: string;
+      gatewayTxnId?: string;
+    },
     provider: PaymentProvider
   ): Promise<ServiceResult<{ updated: boolean; bookingId?: string }>> {
     try {
-      // Find the booking by reference
       const booking = await prisma.booking.findUnique({
         where: { bookingRef: result.bookingRef },
       });
@@ -152,17 +220,16 @@ export const transactionService = {
         return { success: false, error: "Booking not found for webhook." };
       }
 
-      // Record or update the transaction
-      const existing = await prisma.payment.findFirst({
-        where: { providerTxnId: result.paymentIntentId },
-      });
-
       const status: PaymentStatus =
         result.status === "success"
           ? "PAID"
           : result.status === "failure"
           ? "FAILED"
-          : "PENDING";
+          : "UNPAID";
+
+      const existing = await prisma.payment.findFirst({
+        where: { gatewayTxnId: result.paymentIntentId },
+      });
 
       if (existing) {
         await prisma.payment.update({
@@ -173,18 +240,20 @@ export const transactionService = {
         await prisma.payment.create({
           data: {
             bookingId: booking.id,
-            provider,
-            providerTxnId: result.paymentIntentId,
+            gatewayName: provider,
+            gatewayTxnId: result.paymentIntentId,
             amount: result.amount ?? 0,
             currency: result.currency ?? "USD",
             status,
-            method: "CARD",
-            metadata: { event: result.event, gatewayTxnId: result.gatewayTxnId ?? "" },
+            method: "BANK_TRANSFER",
+            gatewayResponse: {
+              event: result.event,
+              gatewayTxnId: result.gatewayTxnId,
+            },
           },
         });
       }
 
-      // Update booking payment status
       await prisma.booking.update({
         where: { id: booking.id },
         data: {
@@ -209,13 +278,13 @@ export const transactionService = {
     } = {}
   ): Promise<ServiceResult<TransactionSummary>> {
     try {
-      const where: Record<string, unknown> = {};
+      const where: any = {};
       if (options.startDate || options.endDate) {
         where.createdAt = {};
-        if (options.startDate) (where.createdAt as Record<string, Date>).gte = options.startDate;
-        if (options.endDate) (where.createdAt as Record<string, Date>).lte = options.endDate;
+        if (options.startDate) where.createdAt.gte = options.startDate;
+        if (options.endDate) where.createdAt.lte = options.endDate;
       }
-      if (options.provider) where.provider = options.provider;
+      if (options.provider) where.gatewayName = options.provider;
 
       const transactions = await prisma.payment.findMany({ where });
 
@@ -223,7 +292,7 @@ export const transactionService = {
       const successful = transactions.filter((t) => t.status === "PAID");
       const failed = transactions.filter((t) => t.status === "FAILED");
       const refunded = transactions.filter((t) => t.status === "REFUNDED");
-      const pending = transactions.filter((t) => t.status === "UNPAID" || t.status === "PENDING");
+      const pending = transactions.filter((t) => t.status === "UNPAID" || t.status === "PARTIAL");
 
       const totalRevenue = successful.reduce((sum, t) => sum + t.amount, 0);
 
