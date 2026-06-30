@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import {
@@ -7,292 +8,181 @@ import {
   Calendar,
   Mountain,
   MapPin,
-  Flame,
-  Star,
-  TrendingUp,
+  Package,
   DollarSign,
   Clock,
-  CheckCircle,
-  Package,
+  TrendingUp,
   BookOpen,
-  MessageSquare,
-  CreditCard,
-  Activity,
-  ArrowUpRight,
-  ArrowDownRight,
+  ArrowRight,
 } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { getDashboardPathForRole } from "@/config/dashboard";
 import { isAdmin } from "@/lib/roles";
+import { adminStats } from "@/app/actions/admin";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const mockData = {
-  stats: {
-    totalUsers: 1248,
-    totalCustomers: 892,
-    totalGuides: 34,
-    totalBookings: 456,
-    upcomingEvents: 12,
-    activeTours: 28,
-    revenue: 245000,
-    pendingBookings: 23,
-    completedBookings: 389,
-  },
-  recentBookings: [
-    { id: "1", customer: "John Doe", tour: "Annapurna Base Camp", date: "2024-12-15", status: "confirmed", amount: 1200 },
-    { id: "2", customer: "Jane Smith", tour: "Everest Base Camp", date: "2025-01-20", status: "pending", amount: 2500 },
-    { id: "3", customer: "Mike Johnson", tour: "Langtang Valley", date: "2024-12-10", status: "completed", amount: 800 },
-    { id: "4", customer: "Sarah Williams", tour: "Manaslu Circuit", date: "2025-02-01", status: "confirmed", amount: 1800 },
-  ],
-  recentUsers: [
-    { id: "1", name: "John Doe", email: "john@example.com", role: "customer", joined: "2024-12-01" },
-    { id: "2", name: "Jane Smith", email: "jane@example.com", role: "guide", joined: "2024-11-28" },
-    { id: "3", name: "Mike Johnson", email: "mike@example.com", role: "customer", joined: "2024-11-25" },
-    { id: "4", name: "Sarah Williams", email: "sarah@example.com", role: "customer", joined: "2024-11-20" },
-  ],
-  topTours: [
-    { name: "Annapurna Base Camp", bookings: 145, revenue: 174000 },
-    { name: "Everest Base Camp", bookings: 98, revenue: 245000 },
-    { name: "Langtang Valley", bookings: 76, revenue: 60800 },
-    { name: "Manaslu Circuit", bookings: 54, revenue: 97200 },
-  ],
-};
+interface AdminStats {
+  tours: number;
+  events: number;
+  destinations: number;
+  bookings: number;
+  customers: number;
+  blogs: number;
+}
 
 export default function AdminDashboard() {
   const { data: session } = useSession();
   const role = session?.user?.role || "guest";
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!isAdmin(role)) {
-    redirect(getDashboardPathForRole(role));
-  }
+  if (!isAdmin(role)) redirect(getDashboardPathForRole(role));
+
+  useEffect(() => {
+    adminStats().then((result) => {
+      if (result.success) {
+        setStats(result.data as AdminStats);
+      }
+      setLoading(false);
+    });
+  }, []);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
         <p className="text-muted-foreground mt-1">
-          Overview of your travel business performance.
+          Overview of your adventure business performance.
         </p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Users"
-          value={mockData.stats.totalUsers.toLocaleString()}
-          icon={Users}
-          trend={{ value: 12, label: "from last month", positive: true }}
-        />
-        <StatCard
-          title="Total Customers"
-          value={mockData.stats.totalCustomers.toLocaleString()}
-          icon={Users}
-          trend={{ value: 8, label: "from last month", positive: true }}
-        />
-        <StatCard
-          title="Travel Guides"
-          value={mockData.stats.totalGuides}
-          icon={Activity}
-          trend={{ value: 3, label: "from last month", positive: true }}
-        />
-        <StatCard
-          title="Total Bookings"
-          value={mockData.stats.totalBookings}
-          icon={Package}
-          trend={{ value: 15, label: "from last month", positive: true }}
-        />
-        <StatCard
-          title="Upcoming Events"
-          value={mockData.stats.upcomingEvents}
-          icon={Calendar}
-          description="Events this month"
-        />
-        <StatCard
-          title="Active Tours"
-          value={mockData.stats.activeTours}
-          icon={Mountain}
-          description="Currently running"
-        />
-        <StatCard
-          title="Revenue"
-          value={`$${mockData.stats.revenue.toLocaleString()}`}
-          icon={DollarSign}
-          trend={{ value: 22, label: "from last month", positive: true }}
-        />
-        <StatCard
-          title="Pending Bookings"
-          value={mockData.stats.pendingBookings}
-          icon={Clock}
-          description="Requires action"
-        />
+        {loading ? (
+          <>
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Published Tours"
+              value={stats?.tours ?? 0}
+              icon={Mountain}
+              description="Active tours on the website"
+            />
+            <StatCard
+              title="Published Events"
+              value={stats?.events ?? 0}
+              icon={Calendar}
+              description="Active events on the website"
+            />
+            <StatCard
+              title="Destinations"
+              value={stats?.destinations ?? 0}
+              icon={MapPin}
+              description="Active destinations"
+            />
+            <StatCard
+              title="Total Bookings"
+              value={stats?.bookings ?? 0}
+              icon={Package}
+              description="All booking records"
+            />
+            <StatCard
+              title="Customers"
+              value={stats?.customers ?? 0}
+              icon={Users}
+              description="Registered customers"
+            />
+            <StatCard
+              title="Published Blogs"
+              value={stats?.blogs ?? 0}
+              icon={BookOpen}
+              description="Active articles"
+            />
+            <StatCard
+              title="Total Content"
+              value={(stats?.tours ?? 0) + (stats?.events ?? 0) + (stats?.destinations ?? 0) + (stats?.blogs ?? 0)}
+              icon={TrendingUp}
+              description="All public content"
+            />
+            <StatCard
+              title="Revenue Ready"
+              value={stats?.bookings ?? 0}
+              icon={DollarSign}
+              description="Bookings processed"
+            />
+          </>
+        )}
       </div>
 
-      {/* Charts & Lists */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Recent Bookings */}
+      {/* Quick Navigation */}
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent Bookings</CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <a href="/dashboard/admin/bookings">View All</a>
-            </Button>
+          <CardHeader>
+            <CardTitle className="text-lg">Travel Content</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {mockData.recentBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                      <Package className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{booking.customer}</p>
-                      <p className="text-xs text-muted-foreground">{booking.tour}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-sm">${booking.amount}</p>
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                        booking.status === "confirmed"
-                          ? "bg-green-100 text-green-800"
-                          : booking.status === "pending"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {booking.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Tours */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Top Performing Tours</CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <a href="/dashboard/admin/tours">View All</a>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {mockData.topTours.map((tour, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{tour.name}</span>
-                    <span className="text-muted-foreground">
-                      {tour.bookings} bookings
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 rounded-full bg-muted">
-                      <div
-                        className="h-2 rounded-full bg-primary"
-                        style={{ width: `${(tour.bookings / 150) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium w-20 text-right">
-                      ${(tour.revenue / 1000).toFixed(0)}k
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Users & Quick Actions */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent Users</CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <a href="/dashboard/admin/users">View All</a>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {mockData.recentUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                      <Users className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                        user.role === "guide"
-                          ? "bg-ocean-100 text-ocean-800"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {user.role}
-                    </span>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {user.joined}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <CardContent className="space-y-2">
+            <QuickLink href="/dashboard/admin/tours" label="Tours" icon={Mountain} count={stats?.tours} />
+            <QuickLink href="/dashboard/admin/events" label="Events" icon={Calendar} count={stats?.events} />
+            <QuickLink href="/dashboard/admin/destinations" label="Destinations" icon={MapPin} count={stats?.destinations} />
+            <QuickLink href="/dashboard/admin/countries" label="Countries" icon={MapPin} />
+            <QuickLink href="/dashboard/admin/cities" label="Cities" icon={MapPin} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle className="text-lg">Content & Marketing</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button asChild variant="outline" className="w-full justify-start">
-              <a href="/dashboard/admin/bookings">
-                <Package className="mr-2 h-4 w-4" />
-                Manage Bookings
-              </a>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start">
-              <a href="/dashboard/admin/tours">
-                <Mountain className="mr-2 h-4 w-4" />
-                Manage Tours
-              </a>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start">
-              <a href="/dashboard/admin/events">
-                <Flame className="mr-2 h-4 w-4" />
-                Manage Events
-              </a>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start">
-              <a href="/dashboard/admin/users">
-                <Users className="mr-2 h-4 w-4" />
-                Manage Users
-              </a>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start">
-              <a href="/dashboard/admin/reports">
-                <TrendingUp className="mr-2 h-4 w-4" />
-                View Reports
-              </a>
-            </Button>
+            <QuickLink href="/dashboard/admin/blogs" label="Blogs" icon={BookOpen} count={stats?.blogs} />
+            <QuickLink href="/dashboard/admin/hot-deals" label="Hot Deals" icon={TrendingUp} />
+            <QuickLink href="/dashboard/admin/special-offers" label="Special Offers" icon={TrendingUp} />
+            <QuickLink href="/dashboard/admin/homepage" label="Homepage" icon={Mountain} />
+            <QuickLink href="/dashboard/admin/coupons" label="Coupons" icon={DollarSign} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Business Operations</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <QuickLink href="/dashboard/admin/bookings" label="Bookings" icon={Package} count={stats?.bookings} />
+            <QuickLink href="/dashboard/admin/users" label="Users" icon={Users} />
+            <QuickLink href="/dashboard/admin/customers" label="Customers" icon={Users} />
+            <QuickLink href="/dashboard/admin/reviews" label="Reviews" icon={TrendingUp} />
+            <QuickLink href="/dashboard/admin/reports" label="Reports" icon={TrendingUp} />
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+}
+
+function QuickLink({ href, label, icon: Icon, count }: { href: string; label: string; icon: any; count?: number }) {
+  return (
+    <Button variant="ghost" className="w-full justify-between" asChild>
+      <a href={href}>
+        <span className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          {label}
+        </span>
+        <span className="flex items-center gap-2">
+          {count !== undefined && (
+            <Badge variant="secondary" className="h-5 px-2 text-xs">
+              {count}
+            </Badge>
+          )}
+          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+        </span>
+      </a>
+    </Button>
   );
 }

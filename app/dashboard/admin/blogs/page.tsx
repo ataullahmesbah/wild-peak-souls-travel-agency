@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Plus, Pencil, Trash2, Eye, FileText } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, Eye, FileText, AlertTriangle } from "lucide-react";
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -12,53 +12,165 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getDashboardPathForRole } from "@/config/dashboard";
 import { isAdmin } from "@/lib/roles";
+import { useAdminData } from "@/hooks/use-admin-data";
+import { adminDelete, adminBulkDelete, adminBulkUpdate } from "@/app/actions/admin";
 
 interface Blog {
-  id: string; title: string; author: string; category: string; status: string; views: number; publishedAt: string;
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  category: { name: string } | null;
+  status: string;
+  viewCount: number;
+  publishedAt: Date | null;
+  isFeatured: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
-
-const mockBlogs: Blog[] = [
-  { id: "1", title: "Best Treks in Nepal", author: "Admin", category: "Trekking", status: "published", views: 1200, publishedAt: "2024-11-15" },
-  { id: "2", title: "Everest Base Camp Guide", author: "Guide Mike", category: "Guides", status: "published", views: 850, publishedAt: "2024-11-20" },
-  { id: "3", title: "Packing for Himalayas", author: "Admin", category: "Tips", status: "draft", views: 0, publishedAt: "" },
-  { id: "4", title: "Annapurna vs Everest", author: "Jane Smith", category: "Comparison", status: "published", views: 640, publishedAt: "2024-12-01" },
-];
-
-const columns: DataTableColumn<Blog>[] = [
-  { key: "title", title: "Title", sortable: true },
-  { key: "author", title: "Author", sortable: true },
-  { key: "category", title: "Category", sortable: true },
-  { key: "status", title: "Status", sortable: true, render: (b) => (
-    <Badge variant={b.status === "published" ? "default" : "secondary"} className={b.status === "published" ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-yellow-100 text-yellow-800 hover:bg-yellow-100"}>{b.status}</Badge>
-  )},
-  { key: "views", title: "Views", sortable: true },
-  { key: "publishedAt", title: "Published", sortable: true },
-];
 
 export default function BlogsPage() {
   const { data: session } = useSession();
   const role = session?.user?.role || "guest";
-  const [blogs, setBlogs] = useState<Blog[]>(mockBlogs);
 
   if (!isAdmin(role)) redirect(getDashboardPathForRole(role));
 
-  const handleDelete = (ids: string[]) => setBlogs(blogs.filter((b) => !ids.includes(b.id)));
-  const handleStatus = (ids: string[], status: string) => setBlogs(blogs.map((b) => ids.includes(b.id) ? { ...b, status } : b));
+  const {
+    data: blogs,
+    total,
+    loading,
+    error,
+    refresh,
+    load,
+  } = useAdminData<Blog>({ model: "blogs", page: 1, limit: 20 });
+
+  const handleDelete = async (id: string) => {
+    const result = await adminDelete("blogs", id);
+    if (result.success) {
+      refresh();
+    } else {
+      alert(result.error || "Failed to delete blog");
+    }
+  };
+
+  const handleBulkDelete = async (ids: string[]) => {
+    const result = await adminBulkDelete("blogs", ids);
+    if (result.success) {
+      refresh();
+    } else {
+      alert(result.error || "Failed to delete blogs");
+    }
+  };
+
+  const handleBulkStatus = async (ids: string[], status: string) => {
+    const result = await adminBulkUpdate("blogs", ids, { status });
+    if (result.success) {
+      refresh();
+    } else {
+      alert(result.error || "Failed to update status");
+    }
+  };
+
+  const columns: DataTableColumn<Blog>[] = [
+    { key: "title", title: "Title", sortable: true },
+    { key: "category", title: "Category", sortable: true, render: (b) => b.category?.name ?? "—" },
+    {
+      key: "status",
+      title: "Status",
+      sortable: true,
+      render: (b) => (
+        <Badge
+          variant={b.status === "PUBLISHED" ? "default" : "secondary"}
+          className={b.status === "PUBLISHED" ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-yellow-100 text-yellow-800 hover:bg-yellow-100"}
+        >
+          {b.status}
+        </Badge>
+      ),
+    },
+    { key: "viewCount", title: "Views", sortable: true },
+    {
+      key: "publishedAt",
+      title: "Published",
+      sortable: true,
+      render: (b) => b.publishedAt ? new Date(b.publishedAt).toLocaleDateString("en-US") : "—",
+    },
+    {
+      key: "featured",
+      title: "Featured",
+      render: (b) => (
+        <Badge variant={b.isFeatured ? "default" : "outline"}>
+          {b.isFeatured ? "Featured" : "—"}
+        </Badge>
+      ),
+    },
+    {
+      key: "createdAt",
+      title: "Created",
+      sortable: true,
+      render: (b) => new Date(b.createdAt).toLocaleDateString("en-US"),
+    },
+  ];
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Blogs" description="Manage blog posts" />
+        <div className="flex items-center gap-3 p-4 rounded-lg border border-red-200 bg-red-50 text-red-700">
+          <AlertTriangle className="h-5 w-5" />
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Blogs" description="Manage blog posts" action={<Button asChild><Link href="/dashboard/admin/blogs/new"><Plus className="mr-2 h-4 w-4" />Add Blog</Link></Button>} />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Blogs" value={blogs.length} icon={BookOpen} />
-        <StatCard title="Published" value={blogs.filter((b) => b.status === "published").length} icon={Eye} />
-        <StatCard title="Drafts" value={blogs.filter((b) => b.status === "draft").length} icon={FileText} />
-        <StatCard title="Total Views" value={blogs.reduce((a, b) => a + b.views, 0).toLocaleString()} icon={BookOpen} />
-      </div>
-      <DataTable data={blogs} columns={columns} keyExtractor={(b) => b.id} searchKeys={["title", "author", "category", "status"]}
-        statusFilter={{ key: "status", options: [{ label: "Published", value: "published" }, { label: "Draft", value: "draft" }] }}
-        actions={[{ label: "Edit", icon: Pencil, onClick: (b) => console.log("Edit", b) }, { label: "Delete", icon: Trash2, onClick: (b) => handleDelete([b.id]), variant: "destructive" }]}
-        bulkActions={[{ label: "Publish", icon: Eye, onClick: (ids) => handleStatus(ids, "published") }, { label: "Unpublish", icon: FileText, onClick: (ids) => handleStatus(ids, "draft") }, { label: "Delete", icon: Trash2, onClick: handleDelete, variant: "destructive" }]}
+      <PageHeader
+        title="Blogs"
+        description="Manage blog posts"
+        action={
+          <Button asChild>
+            <Link href="/dashboard/admin/blogs/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Blog
+            </Link>
+          </Button>
+        }
       />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Total Blogs" value={total} icon={BookOpen} />
+        <StatCard title="Published" value={blogs.filter((b) => b.status === "PUBLISHED").length} icon={Eye} />
+        <StatCard title="Drafts" value={blogs.filter((b) => b.status === "DRAFT").length} icon={FileText} />
+        <StatCard title="Total Views" value={blogs.reduce((a, b) => a + b.viewCount, 0)} icon={BookOpen} />
+      </div>
+      <DataTable
+        data={blogs}
+        columns={columns}
+        keyExtractor={(b) => b.id}
+        searchKeys={["title", "slug", "status"]}
+        statusFilter={{
+          key: "status",
+          options: [
+            { label: "Published", value: "PUBLISHED" },
+            { label: "Draft", value: "DRAFT" },
+          ],
+        }}
+        actions={[
+          { label: "Edit", icon: Pencil, onClick: (b) => console.log("Edit", b.id) },
+          { label: "Delete", icon: Trash2, onClick: (b) => handleDelete(b.id), variant: "destructive" },
+        ]}
+        bulkActions={[
+          { label: "Publish", icon: Eye, onClick: (ids) => handleBulkStatus(ids, "PUBLISHED") },
+          { label: "Unpublish", icon: FileText, onClick: (ids) => handleBulkStatus(ids, "DRAFT") },
+          { label: "Delete", icon: Trash2, onClick: handleBulkDelete, variant: "destructive" },
+        ]}
+      />
+      {loading && blogs.length === 0 && (
+        <div className="flex items-center justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="ml-3 text-muted-foreground">Loading blogs...</span>
+        </div>
+      )}
     </div>
   );
 }
