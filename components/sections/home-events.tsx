@@ -38,6 +38,7 @@ export function HomeEvents() {
             <Reveal key={event.title} delay={i * 100}>
               <Card className="group h-full overflow-hidden border-border/60 p-0 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
                 <div className="relative aspect-[16/10] overflow-hidden">
+                {/* Image */}
                   <img src={event.image} alt={event.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   <div className="absolute left-3 top-3">
