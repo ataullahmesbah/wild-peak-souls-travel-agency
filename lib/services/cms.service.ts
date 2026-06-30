@@ -241,6 +241,16 @@ export const specialOfferService = {
     }
   },
 
+  async getBySlug(slug: string): Promise<ServiceResult<SpecialOffer>> {
+    try {
+      const offer = await prisma.specialOffer.findUnique({ where: { slug } });
+      if (!offer) return { success: false, error: 'Special offer not found.' };
+      return { success: true, data: offer };
+    } catch (err) {
+      return { success: false, error: 'Failed to fetch special offer.' };
+    }
+  },
+
   async create(input: CreateSpecialOfferInput): Promise<ServiceResult<SpecialOffer>> {
     try {
       const existing = await prisma.specialOffer.findUnique({ where: { slug: input.slug } });
